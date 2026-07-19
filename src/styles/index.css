@@ -1,0 +1,161 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Design tokens. This is the single knob Fable 5 turns to redesign the whole
+   UI. Values are `R G B` triplets so Tailwind's `<alpha-value>` opacity syntax
+   works (see tailwind.config.js). Baseline = a Claude-style minimalist dark.
+   ─────────────────────────────────────────────────────────────────────────── */
+:root {
+  /* radii / typography / shadows */
+  --radius-composer: 24px;
+  --radius-bubble: 18px;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-serif: 'Georgia', 'Times New Roman', ui-serif, serif;
+  --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace;
+  --shadow-composer: 0 0 0 1px rgb(0 0 0 / 0.04), 0 2px 6px rgb(0 0 0 / 0.35), 0 12px 28px rgb(0 0 0 / 0.22);
+  --shadow-panel: 0 8px 30px rgb(0 0 0 / 0.45), 0 0 0 1px rgb(0 0 0 / 0.05);
+}
+
+/* Light theme (optional; the panel ships dark via <html class="dark">).
+   Warm off-white — Claude's paper tone, not clinical white. */
+:root {
+  --bg: 250 249 245;
+  --bg-subtle: 244 242 236;
+  --bg-elevated: 255 255 254;
+  --bg-input: 240 238 231;
+  --fg: 38 36 33;
+  --fg-muted: 98 94 87;
+  --fg-subtle: 146 141 132;
+  --border: 228 224 214;
+  --border-strong: 208 203 191;
+  --accent: 198 93 59; /* Claude terracotta */
+  --accent-fg: 255 255 255;
+  --accent-hover: 178 82 51;
+  --danger: 192 58 58;
+  --success: 60 155 108;
+}
+
+/* Dark theme — warm near-black with a faint brown undertone, matching the
+   Claude side panel. Backgrounds carry a touch more red than green/blue. */
+.dark {
+  --bg: 30 29 27;
+  --bg-subtle: 38 36 34;
+  --bg-elevated: 43 41 38;
+  --bg-input: 51 48 45;
+  --fg: 240 238 233;
+  --fg-muted: 168 163 154;
+  --fg-subtle: 122 117 109;
+  --border: 58 55 51;
+  --border-strong: 78 74 69;
+  --accent: 214 122 90; /* Claude terracotta on dark */
+  --accent-fg: 28 26 24;
+  --accent-hover: 224 136 105;
+  --danger: 228 110 110;
+  --success: 96 190 142;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-bg text-fg font-sans antialiased;
+    margin: 0;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--border-strong)) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: rgb(var(--border-strong));
+    border-radius: 4px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--fg-subtle));
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Component classes. Logic-free, purely presentational. Components in
+   src/sidepanel/components reference these by name and pass only data/handlers —
+   the strict logic/style separation the brief asked for.
+   ─────────────────────────────────────────────────────────────────────────── */
+@layer components {
+  /* Icon buttons in the top bar and composer */
+  .icon-btn {
+    @apply inline-flex h-9 w-9 items-center justify-center rounded-full text-fg-muted
+      transition-colors hover:bg-bg-input hover:text-fg
+      focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/60
+      disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  /* The floating composer container at the bottom */
+  .composer {
+    @apply flex flex-col gap-1.5 rounded-composer border border-border bg-bg-elevated
+      px-2.5 py-2 shadow-composer transition-all duration-150
+      focus-within:border-accent/50 focus-within:shadow-composer;
+  }
+
+  .composer-textarea {
+    @apply max-h-48 w-full resize-none bg-transparent px-2 pt-1 text-[15px] leading-6
+      text-fg placeholder:text-fg-subtle focus:outline-none;
+  }
+
+  /* Primary send / action pill */
+  .btn-accent {
+    @apply inline-flex h-9 items-center justify-center gap-1.5 rounded-full bg-accent
+      px-3 text-sm font-medium text-accent-fg transition-colors hover:bg-accent-hover
+      disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .btn-ghost {
+    @apply inline-flex h-9 items-center justify-center gap-1.5 rounded-full px-3 text-sm
+      text-fg-muted transition-colors hover:bg-bg-input hover:text-fg;
+  }
+
+  /* Model selector chip (top-left) */
+  .model-chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-sm text-fg-muted
+      transition-colors hover:bg-bg-input hover:text-fg
+      focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/60;
+  }
+
+  /* Chat bubbles */
+  .bubble-user {
+    @apply ml-auto max-w-[88%] rounded-bubble rounded-br-md bg-bg-input px-3.5 py-2.5
+      text-[15px] leading-relaxed text-fg;
+  }
+
+  .bubble-assistant {
+    @apply max-w-full text-[15px] leading-[1.65] text-fg;
+  }
+
+  /* Tool call / result cards inside the transcript */
+  .tool-card {
+    @apply rounded-xl border border-border bg-bg-subtle px-3 py-2 font-mono text-xs
+      text-fg-muted;
+  }
+
+  /* Settings inputs */
+  .field-label {
+    @apply mb-1.5 block text-xs font-medium uppercase tracking-wide text-fg-subtle;
+  }
+
+  .field-input {
+    @apply w-full rounded-lg border border-border bg-bg-input px-3 py-2 text-sm text-fg
+      placeholder:text-fg-subtle transition-colors focus:border-border-strong
+      focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40;
+  }
+
+  .field-select {
+    @apply field-input cursor-pointer appearance-none pr-8;
+  }
+}

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Sidebar — Design Preview</title>
+    <style>
+      /* Frame the preview at real side-panel width (Chrome side panel ≈ 400px)
+         on a neutral backdrop so the design is judged at true size. */
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #111;
+      }
+      #frame {
+        width: 400px;
+        height: 100vh;
+        margin: 0 auto;
+        border-left: 1px solid #000;
+        border-right: 1px solid #000;
+        overflow: hidden;
+      }
+      #root {
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="frame"><div id="root"></div></div>
+    <!-- Mock chrome.* FIRST (separate module → runs to completion before main.tsx). -->
+    <script type="module" src="/chrome-mock.ts"></script>
+    <script type="module" src="/main.tsx"></script>
+  </body>
+</html>
