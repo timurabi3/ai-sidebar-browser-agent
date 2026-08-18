@@ -1,142 +1,58 @@
-# AI Sidebar — Browser Agent (Manifest V3)
+# AI Sidebar — Browser Agent
 
-A deeply-integrated AI side panel with full browser-agent control over the DOM.
-Claude-style minimalist dark UI, multi-provider API connectors, and a tool-calling
-layer that lets models read and act on the current page (click, type, scroll,
-extract, navigate).
+An AI side panel for Chrome that works on the page you're actually looking at. It reads what's on screen, and it can click, type, scroll and navigate for you. Same job as the big-name browser agents, but you pick the model.
 
-Stack: **Vite + React + TypeScript + Tailwind CSS**, Chrome MV3 (`chrome.sidePanel`).
+If you've used an AI browser extension before, the idea is familiar: ask about the page, or tell it to do something on it. The difference here is the provider list. There's no account lock-in and no forced subscription. Bring your own API key from any of eight providers, or point it at any OpenAI-compatible endpoint you run yourself.
 
----
+<p align="center">
+  <img src="screenshots/empty-state.png" width="240" alt="AI Sidebar empty state" />
+  <img src="screenshots/model-picker.png" width="240" alt="Model picker with providers" />
+  <img src="screenshots/settings.png" width="240" alt="Settings and API connectors" />
+</p>
 
-## Quick start
+## What it can do on a page
+
+- Read the page content and metadata
+- Query the DOM for elements
+- Click, type and scroll
+- Wait for elements, then navigate
+
+Every action the model takes shows up as a tool card in the chat, so you see exactly what it did before it does the next thing. The system prompt, temperature and max tool calls per turn are all yours to set.
+
+## Bring your own model
+
+Connectors included:
+
+| Provider | Notes |
+|---|---|
+| OpenRouter | one key, dozens of models |
+| OpenAI | GPT-5.x, GPT-4.1 |
+| Anthropic | Claude models |
+| Google Gemini | 2.5 Pro, Flash |
+| Kimi (Moonshot) | K2.6 |
+| MiniMax | M-series |
+| Zhipu GLM (Z.ai) | GLM 5.x |
+| DeepSeek | V4 Pro, Flash |
+
+Plus any OpenAI-compatible server: Ollama, LM Studio, vLLM, anything you run locally.
+
+API keys stay in Chrome's local storage and only the extension's background worker uses them. They never get sent to web pages. Details in [PRIVACY.md](PRIVACY.md).
+
+## Install
+
+Node 22+, then:
 
 ```bash
 npm install
-npm run dev      # dev build with HMR (crxjs) → dist/ is watched
-# or
-npm run build    # production build → dist/
+npm run build
 ```
 
-Load in Chrome:
+Open `chrome://extensions`, flip on Developer mode, hit Load unpacked, and point it at the `dist/` folder. Click the toolbar icon to open the side panel.
 
-1. `chrome://extensions` → enable **Developer mode**.
-2. **Load unpacked** → select the `dist/` folder.
-3. Click the toolbar icon (or open the side panel) to launch the UI.
-4. Open **Settings (⚙)** → add an API key for any provider → pick a model
-   (top-left) → chat.
+## Stack
 
-> `npm run dev` keeps `dist/` live-rebuilding. After the first `Load unpacked`,
-> code changes hot-reload the panel; manifest/permission changes need a manual
-> **Reload** on the extensions page.
+Vite, React, TypeScript, Tailwind. Manifest V3 with `chrome.sidePanel`. The panel, the service worker and the content script talk over a typed message protocol; the model never sees your keys.
 
----
+## License
 
-## Architecture
-
-Three isolated JS contexts, connected only by typed message passing
-(`src/lib/messaging.ts`):
-
-```
-┌─────────────────┐   Port (stream)   ┌──────────────────────┐  tabs.sendMessage  ┌───────────────┐
-│  Side Panel     │ ◀───────────────▶ │  Service Worker      │ ◀───────────────▶ │ Content Script │
-│  (React UI)     │   settings RPC    │  (state/keys/agent)  │   tool exec RPC    │  (DOM r/w)     │
-└─────────────────┘                   └──────────────────────┘                    └───────────────┘
-```
-
-- **Side panel** (`src/sidepanel/`) — React UI. Holds no API logic; all
-  streaming/message-passing is in `state/usePanelPort.ts`, all settings in
-  `state/useSettings.ts`. Components are presentational.
-- **Service worker** (`src/background/`) — the only context that sees API keys.
-  Owns persistence (`store.ts`), the agent loop (`agent.ts`), and message
-  routing (`index.ts`).
-- **Content script** (`src/content/`) — tiny surface: receives tool calls, runs
-  DOM tools (`dom-tools.ts`), returns results. No keys, no chat state.
-
-### Provider layer (`src/lib/providers/`)
-
-One adapter per wire format, all normalized to a `StreamEvent` async generator:
-
-| Adapter | Covers |
-|---|---|
-| `openai-compatible.ts` | OpenRouter, OpenAI, Kimi (Moonshot), MiniMax, GLM (Zhipu), DeepSeek, local (Ollama/LM Studio/vLLM) |
-| `anthropic.ts` | Anthropic Messages API |
-| `gemini.ts` | Google Gemini `streamGenerateContent` |
-
-Adding an OpenAI-clone vendor = one entry in `registry.ts` (data only). All three
-adapters fully implement **streaming + tool calling** (assembling streamed
-tool-call fragments into complete calls).
-
-### Tool-calling layer (`src/lib/tools/` + `src/content/dom-tools.ts`)
-
-Provider-neutral JSON-Schema tools with a `runsIn` hint (`content` = DOM tools in
-the page, `background` = tab-level tools in the worker). Current tools:
-`get_page_content`, `query_dom`, `click_element`, `type_text`, `scroll_page`,
-`wait_for_element`, `get_page_metadata`, `navigate`.
-
-The **agent loop** (`background/agent.ts`) streams a completion → executes any
-requested tools → feeds results back → repeats until the model stops or the
-iteration cap is hit.
-
-Element addressing uses a `ref` scheme: `get_page_content` / `query_dom` stamp a
-`data-ai-ref` attribute and hand the model a ref (`e12`) that later tool calls
-resolve back to the live element.
-
----
-
-## Security posture (be honest)
-
-MV3 has **no secure key enclave**. Keys live in `chrome.storage.local` and are
-readable if the extension is unpacked. The boundary this project actually
-enforces: **keys never leave the service worker** — they are not sent to content
-scripts or into page context, and are redacted from the streaming state snapshot
-(`store.ts › redactSettings`). The trusted, same-origin side panel sees them only
-while the user is actively editing them in Settings.
-
-`host_permissions: <all_urls>` + full DOM access is required for a "full browser
-control" agent. Narrow it per deployment if you want to scope the agent to
-specific origins.
-
----
-
-## Extension points
-
-- **MAIN-world bridge** — read the page's own JS variables / framework internals
-  via `chrome.scripting.executeScript({ world: 'MAIN' })`. Deliberately not
-  enabled by default (see `src/content/index.ts`).
-- **Attachment scope** — the paperclip currently attaches a single
-  `get_page_content` text snapshot (capped at 12k chars) plus title/URL.
-  Future: screenshot capture, user text-selection scope.
-- **Conversation rename** — history titles auto-derive from the first user
-  message (truncated 48 chars); explicit rename is a UI nicety for later.
-
-## Conversation history & attachments (implemented)
-
-- **Multi-conversation history** — `store.ts` persists a `Conversation[]` plus
-  `activeId` under `conversations.v1`, migrating any legacy `conversation.v1`
-  on upgrade. The side panel's clock icon opens the history dropdown: new
-  chat, switch, hover-delete.
-- **Page attachments** — the composer paperclip snapshots the active tab
-  (title, URL, extracted text via the content script) into an attachment chip
-  that is sent to the provider as `[Attached page context]`. Remove with ✕.
-
----
-
-## Project layout
-
-```
-src/
-  manifest.config.ts        MV3 manifest (crxjs defineManifest)
-  lib/
-    types.ts                shared contract across all three contexts
-    messaging.ts            typed message-passing protocol
-    id.ts
-    providers/              provider registry + adapters
-    tools/registry.ts       tool schemas + routing
-  background/               service worker: store, agent loop, entry
-  content/                  content script + DOM tools
-  sidepanel/                React UI
-    state/                  port + settings hooks (all the logic)
-    components/             presentational components
-  styles/index.css          design tokens (the redesign knob) + component classes
-```
+MIT. Built by [Timur Oral](https://github.com/timurabi3).
