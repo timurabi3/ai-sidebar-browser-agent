@@ -48,6 +48,18 @@ export interface Conversation {
   updatedAt: number;
 }
 
+/**
+ * A snapshot of the current page, attached to a user message as context via the
+ * composer's paperclip. Populated by the worker (tab metadata + content-script
+ * text extraction) and held transiently by the panel until the message is sent.
+ */
+export interface PageContext {
+  title: string;
+  url: string;
+  /** Extracted readable text content (may be empty on pages that block scripts). */
+  text: string;
+}
+
 // ── Providers ────────────────────────────────────────────────────────────────
 
 /**

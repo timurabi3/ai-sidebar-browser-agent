@@ -50,6 +50,7 @@ export default function App() {
   return (
     <ChatView
       conversation={state.conversation}
+      conversations={state.conversations}
       activeProviderId={state.settings.activeProviderId}
       activeModelId={state.settings.activeModelId}
       configured={state.configured}
@@ -57,7 +58,10 @@ export default function App() {
       error={state.error}
       onSend={actions.send}
       onStop={actions.stop}
-      onNewChat={actions.clear}
+      onNewConversation={actions.newConversation}
+      onSwitchConversation={actions.switchConversation}
+      onDeleteConversation={actions.deleteConversation}
+      onAttach={actions.attachPage}
       onSelectModel={onSelectModel}
       onOpenSettings={() => setView('settings')}
       onDismissError={actions.dismissError}

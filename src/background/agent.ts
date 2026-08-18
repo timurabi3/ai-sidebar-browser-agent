@@ -153,7 +153,7 @@ export async function runAgentTurn(
       assistant.pending = false;
       assistant.error = streamError;
       events.onMessageUpdate(assistant);
-      await appendMessage(assistant);
+      await appendMessage(conversation.id, assistant);
       events.onError(streamError);
       return;
     }
@@ -162,7 +162,7 @@ export async function runAgentTurn(
     assistant.pending = false;
     if (pendingToolCalls.length > 0) assistant.toolCalls = pendingToolCalls;
     events.onMessageUpdate(assistant);
-    await appendMessage(assistant);
+    await appendMessage(conversation.id, assistant);
     history.push(assistant);
 
     // No tools requested → the turn is complete.
@@ -194,7 +194,7 @@ export async function runAgentTurn(
         createdAt: Date.now(),
       };
       events.onMessage(toolMessage);
-      await appendMessage(toolMessage);
+      await appendMessage(conversation.id, toolMessage);
       history.push(toolMessage);
     }
   }
@@ -268,7 +268,7 @@ async function executeBackgroundTool(toolCall: ToolCall): Promise<ToolResult> {
   }
 }
 
-async function getActiveTab(): Promise<chrome.tabs.Tab | undefined> {
+export async function getActiveTab(): Promise<chrome.tabs.Tab | undefined> {
   const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   return tab;
 }

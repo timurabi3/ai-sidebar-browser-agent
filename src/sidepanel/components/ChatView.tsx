@@ -1,4 +1,4 @@
-import type { Conversation } from '../../lib/types';
+import type { Conversation, PageContext } from '../../lib/types';
 import { getProviderDefinition } from '../../lib/providers';
 import { AlertIcon, CloseIcon } from './Icons';
 import { Composer } from './Composer';
@@ -10,14 +10,18 @@ import { TopBar } from './TopBar';
 // action callbacks from App — no message-passing or fetch logic lives here.
 interface Props {
   conversation: Conversation;
+  conversations: Conversation[];
   activeProviderId: string;
   activeModelId: string;
   configured: string[];
   busy: boolean;
   error: string | null;
-  onSend: (text: string) => void;
+  onSend: (text: string, attachment?: PageContext) => void;
   onStop: () => void;
-  onNewChat: () => void;
+  onNewConversation: () => void;
+  onSwitchConversation: (id: string) => void;
+  onDeleteConversation: (id: string) => void;
+  onAttach: () => Promise<PageContext | null>;
   onSelectModel: (providerId: string, modelId: string) => void;
   onOpenSettings: () => void;
   onDismissError: () => void;
@@ -26,6 +30,7 @@ interface Props {
 export function ChatView(props: Props) {
   const {
     conversation,
+    conversations,
     activeProviderId,
     activeModelId,
     configured,
@@ -33,7 +38,10 @@ export function ChatView(props: Props) {
     error,
     onSend,
     onStop,
-    onNewChat,
+    onNewConversation,
+    onSwitchConversation,
+    onDeleteConversation,
+    onAttach,
     onSelectModel,
     onOpenSettings,
     onDismissError,
@@ -49,8 +57,12 @@ export function ChatView(props: Props) {
         activeProviderId={activeProviderId}
         activeModelId={activeModelId}
         configured={configured}
+        conversations={conversations}
+        activeConversationId={conversation.id}
         onSelectModel={onSelectModel}
-        onNewChat={onNewChat}
+        onNewConversation={onNewConversation}
+        onSwitchConversation={onSwitchConversation}
+        onDeleteConversation={onDeleteConversation}
         onOpenSettings={onOpenSettings}
       />
 
@@ -70,7 +82,7 @@ export function ChatView(props: Props) {
         </div>
       )}
 
-      <Composer busy={busy} onSend={onSend} onStop={onStop} />
+      <Composer busy={busy} onSend={onSend} onStop={onStop} onAttach={onAttach} />
     </div>
   );
 }

@@ -1,13 +1,19 @@
-import { PlusIcon, SettingsIcon } from './Icons';
+import type { Conversation } from '../../lib/types';
+import { SettingsIcon } from './Icons';
+import { HistoryList } from './HistoryList';
 import { ModelSelector } from './ModelSelector';
 
-// The top bar: model selector on the left, new-chat + settings on the right.
+// The top bar: model selector on the left, history + settings on the right.
 interface Props {
   activeProviderId: string;
   activeModelId: string;
   configured: string[];
+  conversations: Conversation[];
+  activeConversationId: string;
   onSelectModel: (providerId: string, modelId: string) => void;
-  onNewChat: () => void;
+  onNewConversation: () => void;
+  onSwitchConversation: (id: string) => void;
+  onDeleteConversation: (id: string) => void;
   onOpenSettings: () => void;
 }
 
@@ -15,8 +21,12 @@ export function TopBar({
   activeProviderId,
   activeModelId,
   configured,
+  conversations,
+  activeConversationId,
   onSelectModel,
-  onNewChat,
+  onNewConversation,
+  onSwitchConversation,
+  onDeleteConversation,
   onOpenSettings,
 }: Props) {
   return (
@@ -28,9 +38,13 @@ export function TopBar({
         onSelect={onSelectModel}
       />
       <div className="flex items-center gap-0.5">
-        <button className="icon-btn" onClick={onNewChat} title="New chat" aria-label="New chat">
-          <PlusIcon />
-        </button>
+        <HistoryList
+          conversations={conversations}
+          activeId={activeConversationId}
+          onNew={onNewConversation}
+          onSwitch={onSwitchConversation}
+          onDelete={onDeleteConversation}
+        />
         <button
           className="icon-btn"
           onClick={onOpenSettings}

@@ -1,36 +1,42 @@
 import { uid } from '../lib/id';
 import {
   CHAT_PORT,
+  callContentTool,
   postToPanel,
+  type PageContextRpc,
+  type PageContextRpcResponse,
   type PanelToWorker,
   type SettingsRpc,
   type SettingsRpcResponse,
 } from '../lib/messaging';
 import { getProviderDefinition } from '../lib/providers';
 import { runOAuthSignIn } from '../lib/oauth';
-import type { ChatMessage } from '../lib/types';
-import { runAgentTurn } from './agent';
+import type { ChatMessage, PageContext, ToolCall } from '../lib/types';
+import { getActiveTab, runAgentTurn } from './agent';
 import {
   appendMessage,
-  clearConversation,
   clearProviderKey,
   clearProviderOAuth,
   configuredProviderIds,
-  getConversation,
+  createConversation,
+  deleteConversation,
+  getActiveConversation,
   getSettings,
+  listConversations,
   redactSettings,
   saveSettings,
   setProviderConfig,
   setProviderKey,
   setProviderOAuth,
+  switchConversation,
 } from './store';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Service worker entry. Owns three things:
 //   • The side-panel open behavior (toolbar click opens the panel).
-//   • The chat Port (streaming turns to/from the panel).
-//   • The settings RPC (get/update settings, set/clear keys) — the only path by
-//     which keys enter the worker.
+//   • The chat Port (streaming turns to/from the panel + conversation lifecycle).
+//   • The settings + page-context RPCs — the only paths by which keys enter the
+//     worker, and the path by which the panel captures the current page.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Open the side panel when the toolbar icon is clicked.
@@ -40,27 +46,12 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
-// Only our own extension pages (the side panel) may use the chat port or the
-// settings RPC. Content scripts share the same runtime messaging namespace but
-// execute inside untrusted pages — without this check, code in a content-script
-// context could call `settings:get` and read raw API keys. Extension-page
-// senders always carry a chrome-extension://<our-id>/ URL; everything else is
-// rejected.
-const EXTENSION_ORIGIN = chrome.runtime.getURL('');
-function isTrustedSender(sender: chrome.runtime.MessageSender | undefined): boolean {
-  return !!sender?.url && sender.url.startsWith(EXTENSION_ORIGIN);
-}
-
 // ── Chat streaming Port ──────────────────────────────────────────────────────
 
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== CHAT_PORT) return;
-  if (!isTrustedSender(port.sender)) {
-    port.disconnect();
-    return;
-  }
 
-  // One in-flight turn per port; a new send or a stop aborts the previous.
+  // One in-flight turn per port; a new send, a switch, or a stop aborts the previous.
   let controller: AbortController | null = null;
   let disconnected = false;
 
@@ -74,12 +65,14 @@ chrome.runtime.onConnect.addListener((port) => {
   };
 
   const sendState = async (busy: boolean) => {
-    const conversation = await getConversation();
+    const conversation = await getActiveConversation();
+    const conversations = await listConversations();
     const settings = await getSettings();
     safePost(() =>
       postToPanel(port, {
         type: 'state',
         conversation,
+        conversations,
         settings: redactSettings(settings),
         configured: configuredProviderIds(settings),
         busy,
@@ -98,10 +91,24 @@ chrome.runtime.onConnect.addListener((port) => {
         await sendState(controller !== null);
         break;
 
-      case 'chat:clear':
+      case 'conversation:new':
         controller?.abort();
         controller = null;
-        await clearConversation();
+        await createConversation();
+        await sendState(false);
+        break;
+
+      case 'conversation:switch':
+        controller?.abort();
+        controller = null;
+        await switchConversation(msg.id);
+        await sendState(false);
+        break;
+
+      case 'conversation:delete':
+        controller?.abort();
+        controller = null;
+        await deleteConversation(msg.id);
         await sendState(false);
         break;
 
@@ -113,20 +120,23 @@ chrome.runtime.onConnect.addListener((port) => {
 
       case 'chat:send': {
         const text = msg.text.trim();
-        if (!text) return;
+        if (!text && !msg.attachment) return;
 
         controller?.abort();
         controller = new AbortController();
         const signal = controller.signal;
 
+        const content = msg.attachment ? composeMessage(text, msg.attachment) : text;
+
         // Commit the user message and reflect it immediately.
+        const active = await getActiveConversation();
         const userMessage: ChatMessage = {
           id: uid('msg'),
           role: 'user',
-          content: text,
+          content,
           createdAt: Date.now(),
         };
-        const conv = await appendMessage(userMessage);
+        const conv = await appendMessage(active.id, userMessage);
         safePost(() => postToPanel(port, { type: 'message:add', message: userMessage }));
         safePost(() => postToPanel(port, { type: 'busy', busy: true }));
 
@@ -161,19 +171,26 @@ chrome.runtime.onConnect.addListener((port) => {
   });
 });
 
-// ── Settings RPC (one-shot messages) ─────────────────────────────────────────
+// ── One-shot RPCs (settings + page context) ─────────────────────────────────
 
-chrome.runtime.onMessage.addListener((msg: SettingsRpc, sender, sendResponse) => {
-  // Reject settings RPC from anything that isn't one of our extension pages —
-  // see isTrustedSender above. Returning false leaves the channel unanswered.
-  if (!isTrustedSender(sender)) return false;
-  handleSettingsRpc(msg)
-    .then(sendResponse)
-    .catch((err: unknown) =>
-      sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) }),
-    );
-  return true; // async response
-});
+chrome.runtime.onMessage.addListener(
+  (msg: SettingsRpc | PageContextRpc, _sender, sendResponse) => {
+    if (msg.type === 'page:getContext') {
+      handlePageContextRpc()
+        .then(sendResponse)
+        .catch((err: unknown) =>
+          sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) }),
+        );
+      return true;
+    }
+    handleSettingsRpc(msg)
+      .then(sendResponse)
+      .catch((err: unknown) =>
+        sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) }),
+      );
+    return true; // async response
+  },
+);
 
 async function handleSettingsRpc(msg: SettingsRpc): Promise<SettingsRpcResponse> {
   switch (msg.type) {
@@ -203,4 +220,48 @@ async function handleSettingsRpc(msg: SettingsRpc): Promise<SettingsRpcResponse>
     default:
       return { ok: false, error: 'Unknown settings RPC.' };
   }
+}
+
+// ── Page-context capture (attachment) ────────────────────────────────────────
+
+async function handlePageContextRpc(): Promise<PageContextRpcResponse> {
+  const tab = await getActiveTab();
+  if (!tab?.id) return { ok: false, error: 'No active tab to capture.' };
+
+  const url = tab.url ?? '';
+  const title = tab.title ?? '';
+
+  const toolCall: ToolCall = {
+    id: uid('tool'),
+    name: 'get_page_content',
+    arguments: { mode: 'text', maxChars: 12000 },
+  };
+  const result = await callContentTool(tab.id, toolCall);
+
+  if (result.isError) {
+    // Text extraction is unavailable on pages that block content scripts
+    // (chrome://, the Web Store, PDF viewer, …). Not fatal — attach the page
+    // identity anyway so the model still knows what the user is looking at.
+    return { ok: true, context: { title, url, text: '' } };
+  }
+
+  // get_page_content (mode text) prefixes "URL: …\nTitle: …\n\n" before the
+  // visible text. We already captured URL/title from the tab, so strip the
+  // header to keep `text` as pure page content.
+  const text = result.content.replace(/^URL: [^\n]*\nTitle: [^\n]*\n\n/, '');
+  return { ok: true, context: { title, url, text } };
+}
+
+/** Fold a page snapshot into the outgoing user message. */
+function composeMessage(text: string, attachment: PageContext): string {
+  const parts: string[] = [];
+  if (text) parts.push(text);
+
+  const block: string[] = ['[Attached page context]'];
+  if (attachment.title) block.push(`Title: ${attachment.title}`);
+  if (attachment.url) block.push(`URL: ${attachment.url}`);
+  if (attachment.text) block.push('', 'Page text:', attachment.text);
+
+  parts.push(block.join('\n'));
+  return parts.join('\n\n');
 }

@@ -19,7 +19,8 @@ import type {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SETTINGS_KEY = 'settings.v1';
-const CONVERSATION_KEY = 'conversation.v1';
+const CONVERSATIONS_KEY = 'conversations.v1';
+const LEGACY_CONVERSATION_KEY = 'conversation.v1';
 
 export const DEFAULT_SETTINGS: Settings = {
   activeProviderId: 'openrouter',
@@ -177,13 +178,29 @@ export function configuredProviderIds(settings: Settings): string[] {
     .map(([id]) => id);
 }
 
-// ── Conversation ─────────────────────────────────────────────────────────────
+// ── Conversations (multi) ────────────────────────────────────────────────────
 
-export async function getConversation(): Promise<Conversation> {
-  const raw = await chrome.storage.local.get(CONVERSATION_KEY);
-  const stored = raw[CONVERSATION_KEY] as Conversation | undefined;
-  if (stored) return stored;
-  return createEmptyConversation();
+interface ConversationStore {
+  conversations: Conversation[];
+  activeId: string;
+}
+
+/**
+ * Serialize all store read-modify-write cycles through a single promise chain.
+ * The agent loop and the panel can mutate conversations concurrently (append a
+ * message, switch/delete), and chrome.storage has no transaction support — an
+ * interleaved load→mutate→save would silently drop the earlier write. The lock
+ * makes every mutation atomic relative to the others.
+ */
+let lock: Promise<unknown> = Promise.resolve();
+
+function withLock<T>(task: () => Promise<T>): Promise<T> {
+  const run = lock.then(task, task);
+  lock = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
 }
 
 export function createEmptyConversation(): Conversation {
@@ -191,32 +208,145 @@ export function createEmptyConversation(): Conversation {
   return { id: uid('conv'), title: 'New chat', messages: [], createdAt: now, updatedAt: now };
 }
 
-export async function saveConversation(conv: Conversation): Promise<void> {
-  conv.updatedAt = Date.now();
-  await chrome.storage.local.set({ [CONVERSATION_KEY]: conv });
+function activeOf(store: ConversationStore): Conversation {
+  return store.conversations.find((c) => c.id === store.activeId) ?? store.conversations[0];
 }
 
-export async function appendMessage(message: ChatMessage): Promise<Conversation> {
-  const conv = await getConversation();
-  conv.messages.push(message);
-  if (conv.title === 'New chat' && message.role === 'user') {
-    conv.title = message.content.slice(0, 48) || 'New chat';
+/** Read the store, migrating the legacy single-conversation key on first load. */
+async function readStore(): Promise<ConversationStore> {
+  const raw = await chrome.storage.local.get([CONVERSATIONS_KEY, LEGACY_CONVERSATION_KEY]);
+  const existing = raw[CONVERSATIONS_KEY] as ConversationStore | undefined;
+  if (existing && Array.isArray(existing.conversations) && existing.conversations.length > 0) {
+    return normalizeStore(existing);
   }
-  await saveConversation(conv);
-  return conv;
-}
 
-export async function replaceMessage(message: ChatMessage): Promise<Conversation> {
-  const conv = await getConversation();
-  const idx = conv.messages.findIndex((m) => m.id === message.id);
-  if (idx >= 0) conv.messages[idx] = message;
-  else conv.messages.push(message);
-  await saveConversation(conv);
-  return conv;
-}
+  // Upgrade path: wrap the old `conversation.v1` object into the new list.
+  // No data loss — the existing conversation becomes the active one.
+  const legacy = raw[LEGACY_CONVERSATION_KEY] as Conversation | undefined;
+  if (legacy && legacy.id) {
+    const store = normalizeStore({ conversations: [legacy], activeId: legacy.id });
+    await chrome.storage.local.set({ [CONVERSATIONS_KEY]: store });
+    await chrome.storage.local.remove(LEGACY_CONVERSATION_KEY);
+    return store;
+  }
 
-export async function clearConversation(): Promise<Conversation> {
   const fresh = createEmptyConversation();
-  await saveConversation(fresh);
-  return fresh;
+  const store: ConversationStore = { conversations: [fresh], activeId: fresh.id };
+  await chrome.storage.local.set({ [CONVERSATIONS_KEY]: store });
+  return store;
+}
+
+/** Ensure a non-empty list and a valid activeId. */
+function normalizeStore(store: ConversationStore): ConversationStore {
+  const conversations = store.conversations.filter((c) => c && c.id);
+  if (conversations.length === 0) {
+    const fresh = createEmptyConversation();
+    return { conversations: [fresh], activeId: fresh.id };
+  }
+  const activeId = conversations.some((c) => c.id === store.activeId)
+    ? store.activeId
+    : conversations[0].id;
+  return { conversations, activeId };
+}
+
+async function writeStore(store: ConversationStore): Promise<void> {
+  await chrome.storage.local.set({ [CONVERSATIONS_KEY]: store });
+}
+
+/** The active conversation (used by the agent loop and the port state snapshot). */
+export function getActiveConversation(): Promise<Conversation> {
+  return withLock(async () => activeOf(await readStore()));
+}
+
+/** All conversations, newest first (creation unshifts to the front). */
+export function listConversations(): Promise<Conversation[]> {
+  return withLock(async () => (await readStore()).conversations);
+}
+
+/** Create a new empty conversation and make it active. */
+export function createConversation(): Promise<Conversation> {
+  return withLock(async () => {
+    const store = await readStore();
+    const conv = createEmptyConversation();
+    store.conversations.unshift(conv);
+    store.activeId = conv.id;
+    await writeStore(store);
+    return conv;
+  });
+}
+
+/** Switch the active conversation. No-op (returns active) if the id is unknown. */
+export function switchConversation(id: string): Promise<Conversation> {
+  return withLock(async () => {
+    const store = await readStore();
+    const conv = store.conversations.find((c) => c.id === id);
+    if (!conv) return activeOf(store);
+    store.activeId = id;
+    await writeStore(store);
+    return conv;
+  });
+}
+
+/**
+ * Delete a conversation. If it was active, activate the most recent remaining
+ * conversation (or a fresh one if the list is now empty). Returns the removed
+ * conversation, or null if no such id existed.
+ */
+export function deleteConversation(id: string): Promise<Conversation | null> {
+  return withLock(async () => {
+    const store = await readStore();
+    const idx = store.conversations.findIndex((c) => c.id === id);
+    if (idx < 0) return null;
+    const [removed] = store.conversations.splice(idx, 1);
+    if (store.activeId === id) {
+      if (store.conversations.length === 0) {
+        const fresh = createEmptyConversation();
+        store.conversations.push(fresh);
+        store.activeId = fresh.id;
+      } else {
+        store.activeId = store.conversations[0].id;
+      }
+    }
+    await writeStore(store);
+    return removed;
+  });
+}
+
+/**
+ * Append a message to a SPECIFIC conversation (by id, not "the active one").
+ * Scoped to id so a turn in progress keeps writing to the conversation it
+ * started in even if the user switches away mid-turn.
+ */
+export function appendMessage(
+  conversationId: string,
+  message: ChatMessage,
+): Promise<Conversation> {
+  return withLock(async () => {
+    const store = await readStore();
+    const conv = store.conversations.find((c) => c.id === conversationId) ?? activeOf(store);
+    conv.messages.push(message);
+    if (conv.title === 'New chat' && message.role === 'user') {
+      conv.title = message.content.slice(0, 48) || 'New chat';
+    }
+    conv.updatedAt = Date.now();
+    await writeStore(store);
+    return conv;
+  });
+}
+
+/** Replace (or append) a message within a specific conversation. */
+export function replaceMessage(
+  conversationId: string,
+  message: ChatMessage,
+): Promise<Conversation> {
+  return withLock(async () => {
+    const store = await readStore();
+    const conv = store.conversations.find((c) => c.id === conversationId) ?? activeOf(store);
+    const idx = conv.messages.findIndex((m) => m.id === message.id);
+    if (idx >= 0) conv.messages[idx] = message;
+    else conv.messages.push(message);
+    conv.updatedAt = Date.now();
+    await writeStore(store);
+    return conv;
+  });
 }

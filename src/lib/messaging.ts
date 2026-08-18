@@ -16,6 +16,7 @@ import type {
   ChatMessage,
   Conversation,
   OAuthTokens,
+  PageContext,
   ProviderConfig,
   Settings,
   StreamEvent,
@@ -30,10 +31,12 @@ export const CHAT_PORT = 'chat' as const;
 // ── Panel → Worker (over the chat Port) ──────────────────────────────────────
 
 export type PanelToWorker =
-  | { type: 'chat:send'; text: string }
+  | { type: 'chat:send'; text: string; attachment?: PageContext }
   | { type: 'chat:stop' } // abort the in-flight turn
-  | { type: 'chat:clear' } // wipe the active conversation
-  | { type: 'state:subscribe' }; // request a full state snapshot
+  | { type: 'state:subscribe' } // request a full state snapshot
+  | { type: 'conversation:new' } // create a new conversation and switch to it
+  | { type: 'conversation:switch'; id: string } // switch the active conversation
+  | { type: 'conversation:delete'; id: string }; // delete a conversation
 
 // ── Worker → Panel (over the chat Port) ──────────────────────────────────────
 
@@ -41,6 +44,8 @@ export type WorkerToPanel =
   | {
       type: 'state';
       conversation: Conversation;
+      /** All conversations, newest first (for the history list). */
+      conversations: Conversation[];
       /** Settings with API keys redacted — the panel gets raw keys only via the settings RPC. */
       settings: Settings;
       /** Provider ids that have a key configured (derived, no key values). */
@@ -107,6 +112,23 @@ export async function sendSettingsRpc(
   msg: SettingsRpc,
 ): Promise<SettingsRpcResponse> {
   const res = (await chrome.runtime.sendMessage(msg)) as SettingsRpcResponse | undefined;
+  if (!res) return { ok: false, error: 'No response from service worker.' };
+  return res;
+}
+
+// ── Page-context RPC (attachment) ────────────────────────────────────────────
+
+export type PageContextRpc = { type: 'page:getContext' };
+
+export type PageContextRpcResponse =
+  | { ok: true; context: PageContext }
+  | { ok: false; error: string };
+
+/** Ask the worker to snapshot the active tab (title, URL, extracted text). */
+export async function sendPageContextRpc(): Promise<PageContextRpcResponse> {
+  const res = (await chrome.runtime.sendMessage({
+    type: 'page:getContext',
+  } satisfies PageContextRpc)) as PageContextRpcResponse | undefined;
   if (!res) return { ok: false, error: 'No response from service worker.' };
   return res;
 }

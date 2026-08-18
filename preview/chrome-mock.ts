@@ -109,36 +109,25 @@ function makePort(name: string): FakePort {
       // Reply to a state subscription with a full snapshot. Matches the real
       // PanelToWorker protocol in src/lib/messaging.ts.
       const type = (msg as { type?: string })?.type;
-      if (type === 'state:subscribe') {
-        // `?empty` renders the empty state (serif greeting + example cards).
-        const empty = typeof location !== 'undefined' && location.search.includes('empty');
+      // `?empty` renders the empty state (serif greeting + example cards).
+      const empty = typeof location !== 'undefined' && location.search.includes('empty');
+      const active = empty ? { ...SEED_CONVERSATION, messages: [] } : SEED_CONVERSATION;
+      const replyState = () =>
         queueMicrotask(() =>
           listeners.forEach((l) =>
             l({
               type: 'state',
-              conversation: empty
-                ? { ...SEED_CONVERSATION, messages: [] }
-                : SEED_CONVERSATION,
+              conversation: active,
+              conversations: [active],
               settings: SEED_SETTINGS,
               configured: ['anthropic'],
               busy: false,
             }),
           ),
         );
-      }
-      if (type === 'chat:clear') {
-        queueMicrotask(() =>
-          listeners.forEach((l) =>
-            l({
-              type: 'state',
-              conversation: { ...SEED_CONVERSATION, messages: [] },
-              settings: SEED_SETTINGS,
-              configured: ['anthropic'],
-              busy: false,
-            }),
-          ),
-        );
-      }
+      if (type === 'state:subscribe') replyState();
+      if (type === 'conversation:new') replyState();
+      if (type === 'conversation:switch' || type === 'conversation:delete') replyState();
     },
     disconnect: () => {},
   };
@@ -155,9 +144,19 @@ export function installChromeMock() {
   g.chrome = {
     runtime: {
       connect: (opts: { name: string }) => makePort(opts?.name ?? 'port'),
-      // One-shot settings RPC used by the settings panel (useSettings).
+      // One-shot settings RPC used by the settings panel (useSettings), plus the
+      // page-context RPC used by the composer's attach button.
       sendMessage: async (msg: { type?: string; providerId?: string; apiKey?: string; config?: Record<string, unknown> }) => {
         switch (msg?.type) {
+          case 'page:getContext':
+            return {
+              ok: true,
+              context: {
+                title: 'Example Domain',
+                url: 'https://example.com',
+                text: 'This domain is for use in illustrative examples in documents.',
+              },
+            };
           case 'settings:get':
             return { ok: true, settings: settingsState };
           case 'settings:setKey':

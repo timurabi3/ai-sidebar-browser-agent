@@ -104,10 +104,21 @@ specific origins.
 - **MAIN-world bridge** — read the page's own JS variables / framework internals
   via `chrome.scripting.executeScript({ world: 'MAIN' })`. Deliberately not
   enabled by default (see `src/content/index.ts`).
-- **Attachments** — the composer paperclip is wired but inert; hook it to
-  page-context / screenshot injection.
-- **Multi-conversation history** — `store.ts` currently persists one active
-  conversation; the `Conversation` type is ready for a list.
+- **Attachment scope** — the paperclip currently attaches a single
+  `get_page_content` text snapshot (capped at 12k chars) plus title/URL.
+  Future: screenshot capture, user text-selection scope.
+- **Conversation rename** — history titles auto-derive from the first user
+  message (truncated 48 chars); explicit rename is a UI nicety for later.
+
+## Conversation history & attachments (implemented)
+
+- **Multi-conversation history** — `store.ts` persists a `Conversation[]` plus
+  `activeId` under `conversations.v1`, migrating any legacy `conversation.v1`
+  on upgrade. The side panel's clock icon opens the history dropdown: new
+  chat, switch, hover-delete.
+- **Page attachments** — the composer paperclip snapshots the active tab
+  (title, URL, extracted text via the content script) into an attachment chip
+  that is sent to the provider as `[Attached page context]`. Remove with ✕.
 
 ---
 
