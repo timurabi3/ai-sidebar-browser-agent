@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 320" width="1200" height="320" role="img" aria-label="AI Sidebar — a browser agent that acts on the page you're looking at">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0a0a16"/>
+      <stop offset="0.5" stop-color="#161029"/>
+      <stop offset="1" stop-color="#1e0f26"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#6366f1"/>
+      <stop offset="0.5" stop-color="#d946ef"/>
+      <stop offset="1" stop-color="#fb923c"/>
+      <animate attributeName="x1" values="0;1;0" dur="9s" repeatCount="indefinite"/>
+      <animate attributeName="x2" values="1;2;1" dur="9s" repeatCount="indefinite"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#d946ef" stop-opacity="0.4"/>
+      <stop offset="1" stop-color="#d946ef" stop-opacity="0"/>
+    </radialGradient>
+    <style>
+      .title{font:800 66px 'Segoe UI',Ubuntu,Helvetica,Arial,sans-serif;fill:#f5f3ff}
+      .tag{font:500 24px 'Segoe UI',Ubuntu,Helvetica,Arial,sans-serif;fill:#e9d5ff}
+      .card{font:600 17px 'Segoe UI',Ubuntu,Helvetica,Arial,sans-serif;fill:#e2e8f0}
+      .chip{font:700 15px 'Segoe UI',Ubuntu,Helvetica,Arial,sans-serif;fill:#0a0a16}
+      .rise{opacity:0;transform:translateY(12px);animation:rise .7s ease-out forwards}
+      .d1{animation-delay:.1s}.d2{animation-delay:.3s}.d3{animation-delay:.5s}
+      @keyframes rise{to{opacity:1;transform:translateY(0)}}
+      .tool{opacity:0;animation:pop 6s ease-in-out infinite}
+      .t1{animation-delay:.4s}.t2{animation-delay:1.4s}.t3{animation-delay:2.4s}
+      @keyframes pop{0%,4%{opacity:0;transform:translateX(10px)}10%,55%{opacity:1;transform:translateX(0)}70%,100%{opacity:0}}
+    </style>
+  </defs>
+
+  <rect width="1200" height="320" fill="url(#bg)"/>
+  <circle cx="850" cy="120" r="300" fill="url(#glow)">
+    <animate attributeName="cx" values="850;1050;850" dur="13s" repeatCount="indefinite"/>
+  </circle>
+  <rect x="0" y="0" width="1200" height="5" fill="url(#accent)"/>
+
+  <g class="rise d1"><text x="72" y="120" class="title">AI Sidebar</text></g>
+  <g class="rise d2"><text x="76" y="162" class="tag">A browser agent that acts on the page you're looking at.</text></g>
+  <g class="rise d3" transform="translate(76,206)">
+    <g><rect width="176" height="34" rx="17" fill="url(#accent)"/><text x="88" y="23" text-anchor="middle" class="chip">bring your own model</text></g>
+    <g transform="translate(190,0)"><rect width="140" height="34" rx="17" fill="#e9d5ff"/><text x="70" y="23" text-anchor="middle" class="chip">8 providers</text></g>
+    <g transform="translate(344,0)"><rect width="150" height="34" rx="17" fill="#fdba74"/><text x="75" y="23" text-anchor="middle" class="chip">Manifest V3</text></g>
+  </g>
+
+  <!-- mock browser + side panel with tool cards -->
+  <g transform="translate(770,58)">
+    <rect x="0" y="0" width="360" height="210" rx="12" fill="#0f0f1e" stroke="#3b3357" stroke-width="2"/>
+    <rect x="0" y="0" width="360" height="30" rx="12" fill="#1b1730"/>
+    <circle cx="18" cy="15" r="5" fill="#fb7185"/><circle cx="36" cy="15" r="5" fill="#fbbf24"/><circle cx="54" cy="15" r="5" fill="#34d399"/>
+    <!-- page area -->
+    <rect x="12" y="42" width="200" height="156" rx="8" fill="#12122400" stroke="#2a2442" stroke-width="1.5"/>
+    <rect x="26" y="60" width="150" height="10" rx="5" fill="#312a4d"/>
+    <rect x="26" y="80" width="170" height="8" rx="4" fill="#241f3a"/>
+    <rect x="26" y="96" width="120" height="8" rx="4" fill="#241f3a"/>
+    <!-- side panel -->
+    <rect x="224" y="42" width="124" height="156" rx="8" fill="#171430"/>
+    <rect x="234" y="54" width="70" height="9" rx="4" fill="url(#accent)"/>
+    <g class="tool t1"><rect x="234" y="76" width="104" height="26" rx="6" fill="#251d44"/><text x="244" y="93" class="card" font-size="13">🔎 read page</text></g>
+    <g class="tool t2"><rect x="234" y="108" width="104" height="26" rx="6" fill="#251d44"/><text x="244" y="125" class="card" font-size="13">🖱 click "Buy"</text></g>
+    <g class="tool t3"><rect x="234" y="140" width="104" height="26" rx="6" fill="#251d44"/><text x="244" y="157" class="card" font-size="13">⌨ type email</text></g>
+  </g>
+</svg>

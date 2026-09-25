@@ -1,42 +1,52 @@
-# AI Sidebar — Browser Agent
-
-An AI side panel for Chrome that works on the page you're actually looking at. It reads what's on screen, and it can click, type, scroll and navigate for you. Same job as the big-name browser agents, but you pick the model.
-
-If you've used an AI browser extension before, the idea is familiar: ask about the page, or tell it to do something on it. The difference here is the provider list. There's no account lock-in and no forced subscription. Bring your own API key from any of eight providers, or point it at any OpenAI-compatible endpoint you run yourself.
+<p align="center">
+  <img src="assets/banner.svg" alt="AI Sidebar — a browser agent that acts on the page you're looking at" width="100%">
+</p>
 
 <p align="center">
-  <img src="screenshots/empty-state.png" width="240" alt="AI Sidebar empty state" />
-  <img src="screenshots/model-picker.png" width="240" alt="Model picker with providers" />
-  <img src="screenshots/settings.png" width="240" alt="Settings and API connectors" />
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-6366f1.svg?style=flat-square"></a>
+  <img alt="Chrome extension" src="https://img.shields.io/badge/Chrome-extension-d946ef.svg?style=flat-square&logo=googlechrome&logoColor=white">
+  <img alt="Manifest V3" src="https://img.shields.io/badge/Manifest-V3-fb923c.svg?style=flat-square">
+  <img alt="Vite + React + TypeScript" src="https://img.shields.io/badge/Vite%20%C2%B7%20React%20%C2%B7%20TS-informational.svg?style=flat-square&logo=vite&logoColor=white">
+  <img alt="8 providers" src="https://img.shields.io/badge/providers-8%2B-a78bfa.svg?style=flat-square">
 </p>
+
+<h1 align="center">AI Sidebar — Browser Agent</h1>
+<p align="center"><b>An AI side panel for Chrome that works on the page you're actually looking at.</b><br>
+It reads what's on screen, and it can click, type, scroll and navigate for you. Same job as the big-name browser agents — but <i>you</i> pick the model.</p>
+
+<p align="center">
+  <img src="screenshots/empty-state.png" width="30%" alt="AI Sidebar empty state" />
+  <img src="screenshots/model-picker.png" width="30%" alt="Model picker with providers" />
+  <img src="screenshots/settings.png" width="30%" alt="Settings and API connectors" />
+</p>
+
+If you've used an AI browser extension before, the idea is familiar: ask about the page, or tell it to do something on it. The difference here is the provider list — **no account lock-in, no forced subscription**. Bring your own API key from any of eight providers, or point it at any OpenAI-compatible endpoint you run yourself.
 
 ## What it can do on a page
 
-- Read the page content and metadata
-- Query the DOM for elements
-- Click, type and scroll
-- Wait for elements, then navigate
+- **Read** the page content and metadata
+- **Query** the DOM for elements
+- **Click, type and scroll**
+- **Wait** for elements, then **navigate**
 
-Every action the model takes shows up as a tool card in the chat, so you see exactly what it did before it does the next thing. The system prompt, temperature and max tool calls per turn are all yours to set.
+Every action the model takes shows up as a **tool card** in the chat, so you see exactly what it did before it does the next thing. System prompt, temperature and max tool calls per turn are all yours to set.
 
 ## Bring your own model
 
-Connectors included:
-
 | Provider | Notes |
 |---|---|
-| OpenRouter | one key, dozens of models |
-| OpenAI | GPT-5.x, GPT-4.1 |
-| Anthropic | Claude models |
-| Google Gemini | 2.5 Pro, Flash |
-| Kimi (Moonshot) | K2.6 |
-| MiniMax | M-series |
-| Zhipu GLM (Z.ai) | GLM 5.x |
-| DeepSeek | V4 Pro, Flash |
+| **OpenRouter** | one key, dozens of models |
+| **OpenAI** | GPT-5.x, GPT-4.1 |
+| **Anthropic** | Claude models |
+| **Google Gemini** | 2.5 Pro, Flash |
+| **Kimi (Moonshot)** | K2.6 |
+| **MiniMax** | M-series |
+| **Zhipu GLM (Z.ai)** | GLM 5.x |
+| **DeepSeek** | V4 Pro, Flash |
 
-Plus any OpenAI-compatible server: Ollama, LM Studio, vLLM, anything you run locally.
+Plus any **OpenAI-compatible** server: Ollama, LM Studio, vLLM — anything you run locally.
 
-API keys stay in Chrome's local storage and only the extension's background worker uses them. They never get sent to web pages. Details in [PRIVACY.md](PRIVACY.md).
+> 🔒 API keys stay in Chrome's local storage and only the extension's background worker uses them. They never get sent to web pages. Details in [PRIVACY.md](PRIVACY.md).
 
 ## Install
 
@@ -47,11 +57,11 @@ npm install
 npm run build
 ```
 
-Open `chrome://extensions`, flip on Developer mode, hit Load unpacked, and point it at the `dist/` folder. Click the toolbar icon to open the side panel.
+Open `chrome://extensions`, flip on **Developer mode**, hit **Load unpacked**, and point it at the `dist/` folder. Click the toolbar icon to open the side panel.
 
 ## Stack
 
-Vite, React, TypeScript, Tailwind. Manifest V3 with `chrome.sidePanel`. The panel, the service worker and the content script talk over a typed message protocol; the model never sees your keys.
+**Vite · React · TypeScript · Tailwind.** Manifest V3 with `chrome.sidePanel`. The panel, the service worker and the content script talk over a typed message protocol — and the model never sees your keys.
 
 ## License
 
