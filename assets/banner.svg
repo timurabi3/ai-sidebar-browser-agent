@@ -21,10 +21,10 @@
       .tag{font:500 24px 'Segoe UI',Ubuntu,Helvetica,Arial,sans-serif;fill:#e9d5ff}
       .card{font:600 17px 'Segoe UI',Ubuntu,Helvetica,Arial,sans-serif;fill:#e2e8f0}
       .chip{font:700 15px 'Segoe UI',Ubuntu,Helvetica,Arial,sans-serif;fill:#0a0a16}
-      .rise{opacity:0;animation:rise .7s ease-out forwards}
+      .rise{animation:rise .7s ease-out both}
       .d1{animation-delay:.1s}.d2{animation-delay:.3s}.d3{animation-delay:.5s}
-      @keyframes rise{to{opacity:1}}
-      .tool{opacity:0;animation:pop 6s ease-in-out infinite}
+      @keyframes rise{from{opacity:0}to{opacity:1}}
+      .tool{animation:pop 6s ease-in-out infinite backwards}
       .t1{animation-delay:.4s}.t2{animation-delay:1.4s}.t3{animation-delay:2.4s}
       @keyframes pop{0%,4%{opacity:0;transform:translateX(10px)}10%,55%{opacity:1;transform:translateX(0)}70%,100%{opacity:0}}
     </style>
